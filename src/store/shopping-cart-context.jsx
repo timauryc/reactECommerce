@@ -1,4 +1,4 @@
-import { createContext, useState } from 'react';
+import { createContext, useReducer } from 'react';
 import { DUMMY_PRODUCTS } from '../dummy-products.js';
 
 export const CartContext = createContext({
@@ -8,69 +8,86 @@ export const CartContext = createContext({
 });
 
 
-export default function CartContextProvider({ children }) {
-    const [shoppingCart, setShoppingCart] = useState({
-        items: [],
-      });
-    
-    function handleAddItemToCart(id) {
-        setShoppingCart((prevShoppingCart) => {
-            const updatedItems = [...prevShoppingCart.items];
+function shoppingCartReducer(state, action) {
+    if(action.type === 'ADD_ITEM') {
+        const updatedItems = [...state.items];
 
-            const existingCartItemIndex = updatedItems.findIndex(
-            (cartItem) => cartItem.id === id
-            );
-            const existingCartItem = updatedItems[existingCartItemIndex];
+        const existingCartItemIndex = updatedItems.findIndex(
+            (cartItem) => cartItem.id === action.payload
+        );
+        const existingCartItem = updatedItems[existingCartItemIndex];
 
-            if (existingCartItem) {
+        if (existingCartItem) {
             const updatedItem = {
                 ...existingCartItem,
                 quantity: existingCartItem.quantity + 1,
             };
             updatedItems[existingCartItemIndex] = updatedItem;
-            } else {
-            const product = DUMMY_PRODUCTS.find((product) => product.id === id);
+        } else {
+            const product = DUMMY_PRODUCTS.find((product) => product.id === action.payload);
             updatedItems.push({
-                id: id,
+                id: action.payload,
                 name: product.title,
                 price: product.price,
                 quantity: 1,
             });
-            }
+        }
 
-            return {
+        return {
+            ...state, //not needed, but good practice
             items: updatedItems,
-            };
+        };
+    }
+
+    if (action.type === 'UPDATE_ITEM') {
+        const updatedItems = [...state.items];
+        const updatedItemIndex = updatedItems.findIndex(
+            (item) => item.id === action.payload.id
+        );
+
+        const updatedItem = {
+            ...updatedItems[updatedItemIndex],
+        };
+
+        updatedItem.quantity += action.payload.amount;
+
+        if (updatedItem.quantity <= 0) {
+            updatedItems.splice(updatedItemIndex, 1);
+        } else {
+            updatedItems[updatedItemIndex] = updatedItem;
+        }
+
+        return {
+            ...state,    
+            items: updatedItems,
+        };
+    }
+}
+
+export default function CartContextProvider({ children }) {
+    const [ shoppingCartState, shoppingCartDispatch ] = useReducer(shoppingCartReducer, {
+        items: [],
+    });
+    
+    function handleAddItemToCart(id) {
+        shoppingCartDispatch({
+            type: 'ADD_ITEM',
+            payload: id,
         });
     }
 
     function handleUpdateCartItemQuantity(productId, amount) {
-        setShoppingCart((prevShoppingCart) => {
-            const updatedItems = [...prevShoppingCart.items];
-            const updatedItemIndex = updatedItems.findIndex(
-            (item) => item.id === productId
-            );
-
-            const updatedItem = {
-            ...updatedItems[updatedItemIndex],
-            };
-
-            updatedItem.quantity += amount;
-
-            if (updatedItem.quantity <= 0) {
-            updatedItems.splice(updatedItemIndex, 1);
-            } else {
-            updatedItems[updatedItemIndex] = updatedItem;
-            }
-
-            return {    
-            items: updatedItems,
-            };
+        shoppingCartDispatch({
+            type: 'UPDATE_ITEM',
+            payload: {
+                id: productId,
+                amount: amount,
+            },
         });
     }
 
     const cartCtx = {
-        items: shoppingCart.items,
+        items: shoppingCartState.items,
         onAddToCart: handleAddItemToCart,
         updateItemQuantity: handleUpdateCartItemQuantity
     }
